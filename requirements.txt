@@ -1,0 +1,6 @@
+pydantic>=2.6,<3
+openai>=1.40,<2
+streamlit>=1.36,<2
+python-dateutil>=2.9,<3
+pyyaml>=6,<7
+pytest>=8,<9
