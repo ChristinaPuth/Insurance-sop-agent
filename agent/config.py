@@ -7,6 +7,7 @@ from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_MODEL = "gpt-4.1-mini"      # OpenAI default; other providers pick their own (llm_service.default_model)
 
 
 @dataclass(frozen=True)
@@ -45,7 +46,7 @@ def load_dotenv(path: Path = ROOT / ".env") -> None:
 
 def load_settings() -> Settings:
     load_dotenv()
-    model = os.getenv("MODEL", "gpt-4.1-mini")
+    model = os.getenv("MODEL", DEFAULT_MODEL)
     today = os.getenv("DEMO_TODAY")
     return Settings(
         api_key=os.getenv("OPENAI_API_KEY") or None,

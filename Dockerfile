@@ -9,7 +9,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY agent ./agent
 COPY insurance_claims ./insurance_claims
-COPY app.py main.py ./
+COPY .streamlit ./.streamlit
+COPY app.py ui.py main.py ./
 
 EXPOSE 8501
 CMD ["streamlit", "run", "app.py", "--server.address=0.0.0.0", "--server.port=8501", "--browser.gatherUsageStats=false"]

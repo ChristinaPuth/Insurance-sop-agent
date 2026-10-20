@@ -4,5 +4,22 @@ headless = true
 [browser]
 gatherUsageStats = false
 
+[client]
+toolbarMode = "minimal"
+
 [theme]
-base = "dark"
+base = "light"
+primaryColor = "#0E9384"
+backgroundColor = "#F5F7FA"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#0B1F3A"
+borderColor = "#E2E8F0"
+showWidgetBorder = true
+baseRadius = "10px"
+
+[theme.sidebar]
+backgroundColor = "#0B1F3A"
+secondaryBackgroundColor = "#13294B"
+textColor = "#E2E8F0"
+primaryColor = "#2DD4BF"
+borderColor = "#24406B"
