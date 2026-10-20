@@ -158,7 +158,7 @@ per browser session.
 .venv/bin/python -m pytest -q
 ```
 
-93 unit and workflow tests run against a scripted `FakeLLM`, so they need no key. Each references the SPEC
+99 unit and workflow tests run against a scripted `FakeLLM`, so they need no key. Each references the SPEC
 rule it covers (e.g. `# covers V-9`).
 
 ### Scenario runner (real model)
