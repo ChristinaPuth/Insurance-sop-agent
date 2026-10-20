@@ -10,7 +10,8 @@ VERIFY_ID  →  RESOLVE_INTENT  →  PROCESS_CASE  →  POST_PROCESS
 **The LLM only reads and writes language**: it extracts signals from what the caller says and phrases the reply
 the SOP has already decided on. Strict where the SOP demands it, flexible where reasoning helps.
 
-- Hosted demo: _add the Streamlit Cloud URL here after deployment_
+- Hosted demo: **https://insurance-sop-agentgit-ymsmcdq8a79vh76rvz7jgz.streamlit.app/**
+  (bring your own API key: paste it in the sidebar; a free Groq key works)
 - Design document (Chinese): [`docs/保险理赔SOP_Harness设计文档.docx`](docs/)
 - Numbered rules every test refers to: [`docs/SPEC.md`](docs/SPEC.md)
 
@@ -188,12 +189,6 @@ separately from real failures.
 - Severe distress gets a priority offer of a human, not crisis support.
 - Sessions live in memory; refreshing the page starts over.
 
-## Acknowledgements
-
-This project was built with the assistance of **Claude** (Anthropic) through Claude Code, which helped with
-requirements analysis, design discussion, implementation and tests. Design decisions, review and testing
-against the real model were done by the author.
-
 ## Layout
 
 ```
@@ -210,3 +205,8 @@ tests/            pytest suite + scenarios.yaml
 scripts/          run_scenarios.py
 app.py            Streamlit UI              main.py   terminal chat
 ```
+
+## Acknowledgements
+
+Designed and built with the help of [Claude](https://claude.com/claude-code) (Anthropic), used as a coding
+assistant for design discussion, implementation and tests.
