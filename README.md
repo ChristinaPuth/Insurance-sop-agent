@@ -251,17 +251,6 @@ or missing ones run again.
 
 ---
 
-## Limitations
-
-- The extraction call necessarily sees the caller's raw message, PII included. Production would need a
-  zero-retention endpoint or local entity recognition before the model. Stored history is masked.
-- A representative's own identity is self-asserted (the data has no PII for David); safety rests on the
-  policyholder's authorization.
-- Email sending and policyholder authorization are mocks.
-- English only (the guideline data is keyed `en`).
-- Severe distress gets a priority offer of a human, not crisis support.
-- Sessions live in memory; refreshing the page starts over.
-
 ## Layout
 
 ```
