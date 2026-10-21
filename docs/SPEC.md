@@ -2,7 +2,7 @@
 
 This file describes how the system works today. It is the reference for both the code and the tests. Every rule has an ID, and each test names the rules it covers (for example `# covers V-3`).
 
-For the reasoning behind these rules, see the design document: `docs/Insurance_SOP_Harness_Design.docx`.
+For the reasoning behind these rules, see the design document: `docs/Insurance_SOP_Harness_Design.pdf`.
 
 ---
 

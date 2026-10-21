@@ -12,7 +12,7 @@ the SOP has already decided on. Strict where the SOP demands it, flexible where 
 
 - Hosted demo: **https://insurance-sop-agentgit-ymsmcdq8a79vh76rvz7jgz.streamlit.app/**
   (bring your own API key: paste it in the sidebar; a free Groq key works)
-- Design document: [`docs/Insurance_SOP_Harness_Design.docx`](docs/Insurance_SOP_Harness_Design.docx)
+- Design document: [`docs/Insurance_SOP_Harness_Design.pdf`](docs/Insurance_SOP_Harness_Design.pdf)
 - Test report: [`docs/test-report.md`](docs/test-report.md)
 - Numbered rules every test refers to: [`docs/SPEC.md`](docs/SPEC.md)
 
