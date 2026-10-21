@@ -63,12 +63,42 @@ You need an API key for any OpenAI-compatible model. A free [Groq](https://conso
 
 ### Docker
 
+1. Install and start [Docker Desktop](https://www.docker.com/products/docker-desktop/). Wait until it shows
+   **Engine running**.
+2. Get the code:
+
+   ```bash
+   git clone https://github.com/ChristinaPuth/Insurance-sop-agent.git
+   cd Insurance-sop-agent
+   ```
+
+3. Build the image (a few minutes the first time):
+
+   ```bash
+   docker build -t insurance-sop-agent .
+   ```
+
+4. Run it:
+
+   ```bash
+   docker run --rm -p 8501:8501 insurance-sop-agent
+   ```
+
+5. Open http://localhost:8501 and paste your API key into **Connection** in the sidebar. Leave Base URL and
+   Model empty.
+6. Press **Ctrl+C** in the terminal to stop. `--rm` removes the container when it stops.
+
+To start already connected, pass the key when you run it (the image never contains a `.env` file or any key):
+
 ```bash
-docker build -t insurance-sop-agent .
-docker run -p 8501:8501 -e OPENAI_API_KEY=your-key insurance-sop-agent
+docker run --rm -p 8501:8501 -e OPENAI_API_KEY=your-key insurance-sop-agent
 ```
 
-Open http://localhost:8501. You can also leave `-e OPENAI_API_KEY` out and paste the key into the sidebar.
+| Problem | Fix |
+|---|---|
+| `Cannot connect to the Docker daemon` | Docker Desktop isn't running yet. Start it and wait for **Engine running**. |
+| `port is already allocated` | Use another port, e.g. `-p 8601:8501`, then open http://localhost:8601. |
+| The page shows an old version | Run `docker build` again after pulling new code. |
 
 ### Local
 
