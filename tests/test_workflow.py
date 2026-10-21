@@ -49,7 +49,7 @@ def test_hint_remembered_but_nothing_disclosed_before_verification(run):  # cove
     assert "2 more items" in replies[0]
 
 
-def test_angry_caller_is_not_let_through(run):  # covers EXPLAIN_GATE, M-8
+def test_angry_caller_is_not_let_through(run):  # covers M-2, M-8, E-4
     s, replies = run([
         ("I'm Margaret Chen.", {"identity": {"full_name": "Margaret Chen"}}),
         ("I already told you who I am. This is ridiculous. Just tell me why my claim was denied.",
@@ -204,7 +204,7 @@ def test_extraction_failure_clarifies(data):  # covers T-1
     assert s.phase == Phase.VERIFY_ID and "rephrase" in reply
 
 
-def test_rejected_key_reports_setup_problem(data):  # covers X-5
+def test_rejected_key_reports_setup_problem(data):  # covers T-9
     from agent.llm_service import LLMError, default_base_url
 
     class BadKeyLLM(FakeLLM):
@@ -217,7 +217,7 @@ def test_rejected_key_reports_setup_problem(data):  # covers X-5
     assert default_base_url("sk-abc") is None
 
 
-def test_rate_limit_asks_to_resend(data):  # a provider 429 is not the caller's fault
+def test_rate_limit_asks_to_resend(data):  # covers T-9
     from agent.llm_service import LLMError
 
     class BusyLLM(FakeLLM):
@@ -238,14 +238,14 @@ def test_other_persons_claim_after_verification(run):  # covers A-5
     assert "only access claims" in replies[-1]
 
 
-def test_followup_context_carries_the_question(data):  # the responder sees what was actually asked
+def test_followup_context_carries_the_question(data):  # covers T-8, F-7
     llm = FakeLLM([GOLDEN_EXT, {"asks_question": True}])
     s, _ = handle_turn(start_session("SES-T"), GOLDEN, llm, data, TODAY)
     handle_turn(s, "Which doctor reviewed my claim?", llm, data, TODAY)
     assert llm.respond_contexts[-1]["CALLER_LATEST_MESSAGE"] == "Which doctor reviewed my claim?"
 
 
-def test_other_person_keyword_safety_net(run):  # A-5 even when the extractor misses it
+def test_other_person_keyword_safety_net(run):  # covers A-5, E-7
     s, replies = run([
         (GOLDEN, GOLDEN_EXT),
         ("Can you also check my son David's claim?", {"asks_question": True}),
@@ -253,9 +253,61 @@ def test_other_person_keyword_safety_net(run):  # A-5 even when the extractor mi
     assert s.trace[-1].steps == ["OTHER_PERSON_LOCKED"] and "only access claims" in replies[-1]
 
 
-def test_other_person_rule_ignores_own_claims():
+def test_other_person_rule_ignores_own_claims():  # covers E-7
     from agent.orchestrator import mentions_other_person
     assert mentions_other_person("what about my wife's policy?")
     assert mentions_other_person("is there a claim for my daughter?")
     assert not mentions_other_person("can you check my auto claim?")
     assert not mentions_other_person("my son was in the car when the accident happened")
+
+
+def test_off_topic_question_is_not_made_relevant_by_being_a_question(run):  # O-1
+    rl = {"off_topic": "unrelated", "asks_question": True}
+    s, _ = run([("what is RL?", rl), ("what is SGD?", rl), ("what is Adam?", rl)])
+    assert s.trace[-1].steps == ["OFFER_HANDOFF"] and s.off_topic_streak == 3
+
+
+def test_refused_field_keyword_safety_net(run):  # covers M-6, E-7
+    s, replies = run([("I'm Margaret Chen but I don't want to give my SSN.",
+                       {"identity": {"full_name": "Margaret Chen"}})])
+    assert s.trace[-1].steps == ["OFFER_ALT_FIELDS"] and "SSN" not in replies[0]
+
+
+def test_refused_field_rule():  # covers E-7
+    from agent.orchestrator import refused_field
+    assert refused_field("I don't want to give my SSN") == "id_last4"
+    assert refused_field("I'd rather not share my phone number") == "phone"
+    assert refused_field("my SSN ends in 4472") is None
+
+
+def test_refused_field_name_from_model_is_normalized(run):  # M-6, E-7: model said "ssn" or left the field empty
+    for field in ("ssn", None, "SSN last 4"):
+        s, replies = run([("I'm Margaret Chen but I don't want to give my SSN.",
+                           {"identity": {"full_name": "Margaret Chen"},
+                            "refusal": {"target": "field", "field": field}})])
+        assert s.trace[-1].steps == ["OFFER_ALT_FIELDS"], field
+        assert "SSN" not in replies[0]
+
+
+def test_field_refusal_tagged_as_verification_refusal(run):  # M-6, E-7: model over-reads one field as all
+    s, replies = run([("I'm Margaret Chen but I don't want to give my SSN.",
+                       {"identity": {"full_name": "Margaret Chen"},
+                        "refusal": {"target": "verification"}})])
+    assert s.trace[-1].steps == ["OFFER_ALT_FIELDS"] and s.gate_refusals == {}
+
+
+def test_field_refusal_beats_a_skip_flag(run):  # M-6: model flagged both "skip" and one named field
+    s, _ = run([("I'm Margaret Chen but I don't want to give my SSN.",
+                 {"identity": {"full_name": "Margaret Chen"}, "asks_to_skip": True,
+                  "refusal": {"target": "field", "field": "id_last4"}})])
+    assert s.trace[-1].steps == ["OFFER_ALT_FIELDS"] and s.gate_refusals == {}
+
+
+def test_question_during_email_offer_is_answered_even_if_read_as_unclear(run):  # S-7, P-8
+    s, _ = run([
+        (GOLDEN, GOLDEN_EXT),
+        ("That's all.", {"is_done": True}),
+        ("Actually, one more question: where do I upload the files?",
+         {"asks_question": True, "followup_topic": "submission_method", "email_decision": "unclear"}),
+    ])
+    assert s.trace[-1].steps == ["ANSWER_FOLLOWUP", "OFFER_EMAIL"] and not s.email_reconfirmed

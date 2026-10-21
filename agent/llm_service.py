@@ -113,3 +113,39 @@ class FakeLLM:
         if reply is None:
             raise LLMError("fake LLM has no reply")
         return reply
+
+
+class Connection:
+    """Which key, endpoint and model to use, and where each came from (site settings first, then .env)."""
+
+    def __init__(self, api_key, base_url, model, key_source, base_source, model_source):
+        self.api_key, self.base_url, self.model = api_key, base_url, model
+        self.key_source, self.base_source, self.model_source = key_source, base_source, model_source
+
+
+def resolve_connection(settings, typed_key: str = "", typed_base: str = "", typed_model: str = "") -> Connection:
+    """K-1..K-3 for the UI: a value typed on the site wins; otherwise the environment / .env; otherwise defaults."""
+    from .config import DEFAULT_MODEL
+
+    typed_key, typed_base, typed_model = typed_key.strip(), typed_base.strip(), typed_model.strip()
+    env = ".env / environment"
+    key, key_src = (typed_key, "site settings") if typed_key else (settings.api_key, env if settings.api_key else None)
+
+    if typed_base:
+        base, base_src = typed_base, "site settings"
+    elif settings.base_url:
+        base, base_src = settings.base_url, env
+    elif key and default_base_url(key):
+        base, base_src = default_base_url(key), "detected from the key"
+    else:
+        base, base_src = None, "default (OpenAI)"
+
+    if typed_model:
+        model, model_src = typed_model, "site settings"
+    elif settings.model_configured:
+        model, model_src = settings.response_model, env
+    elif key and default_model(key) and base_src == "detected from the key":
+        model, model_src = default_model(key), "default for this provider"
+    else:
+        model, model_src = DEFAULT_MODEL, "default"
+    return Connection(key, base, model, key_src, base_src, model_src)

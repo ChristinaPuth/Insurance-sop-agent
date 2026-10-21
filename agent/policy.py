@@ -29,8 +29,10 @@ def _handoff(state: SessionState, reason: str) -> Step:
 
 
 def is_relevant(ext: ExtractionResult) -> bool:
+    """Does the message carry anything for the SOP? An off-topic question is not made relevant by being a question."""
     ident = ext.identity
-    return bool(ext.asks_question or ext.intent or ext.is_done or ext.answer != "none"
+    question = ext.asks_question and ext.off_topic not in OFF_TOPIC
+    return bool(question or ext.intent or ext.is_done or ext.answer != "none"
                 or ext.email_decision != "none" or ext.switch_case or ext.asks_to_skip
                 or any(getattr(ident, f) for f in PII_FIELDS) or ext.policy_number
                 or ext.case_hint.model_dump(exclude_none=True))
@@ -175,6 +177,9 @@ def _verify_id(state: SessionState, ext: ExtractionResult, data: InsuranceData, 
         if level == 2:
             return [Step(action=Action.OFFER_ALT_FIELDS, params={"options": options, "needed": needed,
                                                                   "mention_handoff": True}, updates=updates)]
+        if refused:                                                                      # M-6
+            return [Step(action=Action.OFFER_ALT_FIELDS, params={"options": options, "needed": needed},
+                         updates=updates)]
         if level == 1:
             return [Step(action=Action.EXPLAIN_GATE, params=ask, updates=updates)]
         if updates:
@@ -236,7 +241,8 @@ def _ladder(state: SessionState, ext: ExtractionResult, gate: str) -> tuple[int,
     level = state.escalation_level
     refusals = state.gate_refusals.get(gate, 0)
     gave_data = any(getattr(ext.identity, f) for f in PII_FIELDS)
-    refused = ext.asks_to_skip or ext.refusal.target == gate
+    # a refusal that names one field is not a refusal of the whole gate, whatever else the model flagged (M-6)
+    refused = (ext.asks_to_skip or ext.refusal.target == gate) and ext.refusal.target != "field"
     upset = ext.emotion.intensity >= 2 and ext.emotion.type in ("frustration", "anger")
     updates: dict = {}
 
@@ -393,13 +399,8 @@ def _post_process(state: SessionState, ext: ExtractionResult, data: InsuranceDat
     if decision == "no" and state.email_status in (EmailStatus.OFFERED, EmailStatus.NOT_OFFERED):
         return [Step(action=Action.EMAIL_SKIPPED, updates={"email_status": EmailStatus.DECLINED}),
                 anything_else()]
-    if decision == "unclear" and state.awaiting == Awaiting.EMAIL:                     # P-3
-        if not state.email_reconfirmed:
-            return [Step(action=Action.RECONFIRM_EMAIL, updates={"email_reconfirmed": True})]
-        return [Step(action=Action.EMAIL_SKIPPED, updates={"email_status": EmailStatus.DECLINED}),
-                anything_else()]
-
-    if ext.asks_question and state.resolved_case_id:                                    # S-7
+    question = ext.asks_question or ext.followup_topic != "none"
+    if question and state.resolved_case_id:                                             # S-7: answer first
         repo = repo_for(state, data)
         claim = repo.get_claim(state.resolved_case_id)
         steps = [_followup(claim, claim_facts(claim, data, today), ext.followup_topic, data, today)]
@@ -407,6 +408,12 @@ def _post_process(state: SessionState, ext: ExtractionResult, data: InsuranceDat
         steps[0].params["after_email_sent"] = state.email_status == EmailStatus.SENT     # P-7
         steps.append(offer() if state.email_status == EmailStatus.OFFERED else anything_else())  # P-8
         return steps
+
+    if decision == "unclear" and state.awaiting == Awaiting.EMAIL:                     # P-3
+        if not state.email_reconfirmed:
+            return [Step(action=Action.RECONFIRM_EMAIL, updates={"email_reconfirmed": True})]
+        return [Step(action=Action.EMAIL_SKIPPED, updates={"email_status": EmailStatus.DECLINED}),
+                anything_else()]
 
     finished = ext.is_done or (state.awaiting == Awaiting.ANYTHING_ELSE and ext.answer == "no")
     if finished:

@@ -12,7 +12,7 @@ from .facts import facts_said, missing_must_state, numbers_ok
 from .llm_service import LLM, LLMError
 from .prompts import STEP_HINTS
 from .safety import guard, mask_message
-from .schemas import Action, AgentReply, Directive, ExtractionResult, Phase, Preface, Step
+from .schemas import Action, AgentReply, Directive, ExtractionResult, Phase, Preface, RefusalSignal, Step
 from .state import PII_FIELDS, CaseQuery, Correction, SessionState, Turn, TurnTrace
 
 MAX_TRANSITIONS = 3   # S-12
@@ -27,6 +27,44 @@ _OTHER_PERSON = re.compile(
 
 def mentions_other_person(text: str) -> bool:
     return bool(_OTHER_PERSON.search(text))
+
+
+_REFUSE = re.compile(r"\b(don'?t|do not|won'?t|will not|rather not|not comfortable|refuse to|can'?t)\b"
+                     r"[^.?!]{0,30}\b(give|share|provide|tell|say|disclose)\b[^.?!]{0,20}"
+                     r"\b(ssn|social security|national id|id number|phone|email|date of birth|dob|birthday)\b",
+                     re.IGNORECASE)
+_REFUSED_FIELD = {"ssn": "id_last4", "social security": "id_last4", "national id": "id_last4",
+                  "id number": "id_last4", "phone": "phone", "email": "email", "date of birth": "dob",
+                  "dob": "dob", "birthday": "dob"}
+
+
+_FIELD_NAMES = {"full_name": "full_name", "name": "full_name", "dob": "dob", "date_of_birth": "dob",
+                "birthday": "dob", "birth_date": "dob", "phone": "phone", "phone_number": "phone", "email": "email",
+                "email_address": "email", "id_last4": "id_last4", "ssn": "id_last4", "ssn_last4": "id_last4",
+                "social": "id_last4", "national_id": "id_last4", "national_id_last4": "id_last4", "id": "id_last4"}
+
+
+def fix_refusal(ext: ExtractionResult, text: str) -> tuple[ExtractionResult, str | None]:
+    """Make a field refusal usable: map the model's field name to ours, or fill it from the keyword rule."""
+    r = ext.refusal
+    keyword = refused_field(text)
+    if r.target == "field":
+        field = _FIELD_NAMES.get((r.field or "").strip().lower().replace(" ", "_")) or keyword
+        if field and field != r.field:
+            return (ext.model_copy(update={"refusal": RefusalSignal(target="field", field=field)}),
+                    f"refused field {r.field!r} read as {field}")
+        return ext, None
+    if r.target in ("none", "verification") and keyword:   # "won't give my SSN" names one field, not all of them
+        return (ext.model_copy(update={"refusal": RefusalSignal(target="field", field=keyword),
+                                       "asks_to_skip": False}),
+                f"refused field {keyword} set by keyword rule (model said {r.target!r})")
+    return ext, None
+
+
+def refused_field(text: str) -> str | None:
+    """'I don't want to give my SSN' -> 'id_last4'. Deterministic backup for the extractor."""
+    m = _REFUSE.search(text)
+    return _REFUSED_FIELD[m.group(3).lower()] if m else None
 
 _NORMALIZERS = {
     "full_name": lambda v: " ".join(v.split()) if v.strip() else None,
@@ -174,6 +212,10 @@ def handle_turn(state: SessionState, user_msg: str, llm: LLM | None, data: Insur
     if not ext.about_other_person and mentions_other_person(user_msg):   # deterministic safety net (A-5)
         ext = ext.model_copy(update={"about_other_person": True, "switch_case": False})
         notes.append("about_other_person set by keyword rule")
+    if s.phase == Phase.VERIFY_ID:                                       # safety net (M-6)
+        ext, note = fix_refusal(ext, user_msg)
+        if note:
+            notes.append(note)
     masked = mask_message(user_msg, ext.identity)
     before = s
     s = merge_memory(s, ext, masked)

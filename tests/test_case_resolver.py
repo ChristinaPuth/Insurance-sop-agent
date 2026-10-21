@@ -24,7 +24,7 @@ def test_vague_single_candidate_is_confirmed(data):  # covers C-4
     assert r.kind == "confirm" and r.case_ids == ("CL-2102",)
 
 
-def test_no_clue_and_no_intent_asks(data):
+def test_no_clue_and_no_intent_asks(data):  # covers C-4
     assert resolve(repo(data), CaseQuery(), None).kind == "ask_intent"
 
 
@@ -51,6 +51,6 @@ def test_repo_never_exposes_other_parties(data):  # covers D-2
     assert r.get_claim("CL-3001") is None
 
 
-def test_denial_question_alone_narrows_to_denied(data):  # covers C-2/C-4 with intent as a clue
+def test_denial_question_alone_narrows_to_denied(data):  # covers C-2, C-4
     r = resolve(repo(data), CaseQuery(), Intent.DENIAL_QUESTION)
     assert r.kind == "confirm" and r.case_ids == ("CL-2048",)

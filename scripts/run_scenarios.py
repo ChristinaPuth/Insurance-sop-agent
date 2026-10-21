@@ -3,6 +3,10 @@
     OPENAI_API_KEY=gsk_... .venv/bin/python scripts/run_scenarios.py            # all scenarios
     .venv/bin/python scripts/run_scenarios.py --only golden_margaret angry_caller
     .venv/bin/python scripts/run_scenarios.py --report docs/scenario-report.md
+    .venv/bin/python scripts/run_scenarios.py --report docs/scenario-report.md --resume   # continue after a stop
+
+Each finished scenario is saved to .scenario-progress.jsonl right away, and the report is rewritten after
+every scenario. After Ctrl+C, a crash, a rate limit or a fix, the same command with --resume skips what already passed.
 
 Checks state and forbidden/required phrases, never exact wording (LLM output varies).
 Base URL and model are inferred from a Groq key when not set.
@@ -10,6 +14,7 @@ Base URL and model are inferred from a Groq key when not set.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -23,7 +28,7 @@ sys.path.insert(0, str(ROOT))
 
 from agent.config import load_settings  # noqa: E402
 from agent.data import load_data  # noqa: E402
-from agent.llm_service import LLMError, OpenAILLM, default_base_url, default_model  # noqa: E402
+from agent.llm_service import LLMError, OpenAILLM, resolve_connection  # noqa: E402
 from agent.orchestrator import handle_turn, start_session  # noqa: E402
 
 GUARD_MARKERS = ("pre-verification", "echoed")
@@ -73,6 +78,10 @@ def main() -> int:
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument("--pause", type=float, default=0.0, help="seconds to wait between scenarios (rate limits)")
     ap.add_argument("--retries", type=int, default=6, help="API retries per call; 429s are waited out")
+    ap.add_argument("--resume", action="store_true",
+                    help="skip scenarios that already passed with this model; re-run failed, rate-limited and missing ones")
+    ap.add_argument("--progress", default=str(ROOT / ".scenario-progress.jsonl"),
+                    help="where finished scenarios are recorded as they complete")
     args = ap.parse_args()
 
     settings = load_settings()
@@ -80,9 +89,8 @@ def main() -> int:
     if not key:
         print("Set OPENAI_API_KEY (any OpenAI-compatible key).", file=sys.stderr)
         return 2
-    base_url = settings.base_url or default_base_url(key)
-    model_env = os.getenv("MODEL") or os.getenv("RESPONSE_MODEL")
-    model = model_env or default_model(key) or settings.response_model
+    conn = resolve_connection(settings)          # same rules as the UI: environment / .env, then defaults
+    base_url, model = conn.base_url, conn.model
     llm = OpenAILLM(key, os.getenv("EXTRACT_MODEL") or model, model, base_url, max_retries=args.retries)
     default_today = settings.demo_today or SCENARIO_TODAY
     data = load_data(settings.data_dir)
@@ -102,64 +110,97 @@ def main() -> int:
     if args.only:
         scenarios = [s for s in scenarios if s["id"] in args.only]
 
-    total_turns = sum(len(s["turns"]) for s in scenarios)
-    print(f"Preflight OK. Running {len(scenarios)} scenarios ({total_turns} turns); one dot per finished turn.\n",
-          flush=True)
-    results = []
-    run_started, done_turns = time.time(), 0
-    for n, sc in enumerate(scenarios, 1):
-        today = date.fromisoformat(sc["today"]) if sc.get("today") else default_today
-        if args.pause and n > 1:
-            time.sleep(args.pause)
-        state = start_session("SES-L3" + sc["id"][:2].upper())
-        state.consent_scenario = sc.get("consent_scenario", "default")
-        transcript, fails = [], []
-        started = time.time()
-        print(f"[{n:>2}/{len(scenarios)}] {sc['id']:<30} ", end="", flush=True)
-        for i, turn in enumerate(sc["turns"], 1):
-            state, reply = handle_turn(state, turn["user"], llm, data, today, settings.thresholds)
-            t = state.trace[-1]
-            transcript.append((turn["user"], reply, t.steps, t.notes))
-            fails += [f"turn {i}: {f}" for f in check_turn(turn, state, reply)]
-            done_turns += 1
-            print("." if not any("failed" in x for x in t.notes) else "!", end="", flush=True)
-        ok = not fails
-        limited = any("429" in note for *_, notes in transcript for note in notes)
-        label = "PASS" if ok else ("RATE-LIMITED" if limited else "FAIL")
-        results.append((sc, ok, fails, transcript, time.time() - started))
-        print(f" {label}  {time.time() - started:4.1f}s   "
-              f"(total {done_turns}/{total_turns} turns, {time.time() - run_started:.0f}s elapsed)", flush=True)
-        for f in fails:
-            print(f"      - {f}")
-        if limited and not ok:
-            print("      (hit the provider's rate limit; re-run later with --only " + sc["id"] + ")")
-        elif args.verbose or not ok:
-            for user, reply, steps, notes in transcript:
-                print(f"      > {user}\n      < {reply}\n        {' → '.join(steps)} {notes or ''}")
+    # progress: one JSON line per finished scenario, so an interrupted run can --resume
+    progress = Path(args.progress)
+    done: dict[str, dict] = {}
+    if args.resume and progress.exists():
+        for line in progress.read_text(encoding="utf-8").splitlines():
+            rec = json.loads(line)
+            hit_limit = any("429" in n for *_, notes in rec["transcript"] for n in notes)
+            if rec["model"] == model and rec["label"] == "PASS" and not hit_limit:
+                done[rec["id"]] = rec          # a clean pass with this model: keep; anything else runs again
+    elif not args.resume:
+        progress.write_text("", encoding="utf-8")
+    todo = [sc for sc in scenarios if sc["id"] not in done]
 
-    passed = sum(ok for _, ok, *_ in results)
-    limited_ids = [sc["id"] for sc, ok, _, tr, _ in results
-                   if not ok and any("429" in note for *_, notes in tr for note in notes)]
-    print(f"\n{passed}/{len(results)} scenarios passed  (model={model}, base_url={base_url or 'openai'}, "
+    total_turns = sum(len(s["turns"]) for s in todo)
+    print(f"Preflight OK. {len(scenarios)} scenarios selected"
+          + (f", {len(done)} already passed (resumed from {progress.name})" if done else "")
+          + f"; running {len(todo)} ({total_turns} turns). One dot per finished turn.\n", flush=True)
+
+    records = dict(done)
+    run_started, done_turns = time.time(), 0
+    try:
+        for n, sc in enumerate(todo, 1):
+            today = date.fromisoformat(sc["today"]) if sc.get("today") else default_today
+            if args.pause and n > 1:
+                time.sleep(args.pause)
+            state = start_session("SES-L3" + sc["id"][:2].upper())
+            state.consent_scenario = sc.get("consent_scenario", "default")
+            transcript, fails = [], []
+            started = time.time()
+            print(f"[{n:>2}/{len(todo)}] {sc['id']:<30} ", end="", flush=True)
+            for i, turn in enumerate(sc["turns"], 1):
+                state, reply = handle_turn(state, turn["user"], llm, data, today, settings.thresholds)
+                t = state.trace[-1]
+                transcript.append([turn["user"], reply, t.steps, t.notes])
+                fails += [f"turn {i}: {f}" for f in check_turn(turn, state, reply)]
+                done_turns += 1
+                print("." if not any("failed" in x for x in t.notes) else "!", end="", flush=True)
+            # any rate-limited turn means the model never saw that message: a pass would be hollow
+            limited = any("429" in note for *_, notes in transcript for note in notes)
+            label = "RATE-LIMITED" if limited else ("PASS" if not fails else "FAIL")
+            rec = {"id": sc["id"], "model": model, "label": label, "fails": fails, "transcript": transcript,
+                   "secs": round(time.time() - started, 1)}
+            records[sc["id"]] = rec
+            with progress.open("a", encoding="utf-8") as fh:          # saved before anything else can fail
+                fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            if args.report:
+                write_report(args.report, scenarios, records, model)
+            print(f" {label}  {rec['secs']:4.1f}s   "
+                  f"(total {done_turns}/{total_turns} turns, {time.time() - run_started:.0f}s elapsed)", flush=True)
+            for f in fails:
+                print(f"      - {f}")
+            if label == "RATE-LIMITED":
+                print("      (hit the provider's rate limit; it will be re-run with --resume)")
+            elif args.verbose or fails:
+                for user, reply, steps, notes in transcript:
+                    print(f"      > {user}\n      < {reply}\n        {' → '.join(steps)} {notes or ''}")
+    except KeyboardInterrupt:
+        print(f"\n\nStopped. Finished scenarios are saved in {progress.name}. Continue with the same command "
+              "plus --resume.")
+        return 130
+
+    ordered = [records[sc["id"]] for sc in scenarios if sc["id"] in records]
+    passed = sum(r["label"] == "PASS" for r in ordered)
+    limited_ids = [r["id"] for r in ordered if r["label"] == "RATE-LIMITED"]
+    print(f"\n{passed}/{len(ordered)} scenarios passed  (model={model}, base_url={base_url or 'openai'}, "
           f"today={default_today})")
     if limited_ids:
-        print(f"{len(limited_ids)} hit the rate limit and are inconclusive. Re-run them with:\n"
-              f"  .venv/bin/python scripts/run_scenarios.py --pause 20 --only {' '.join(limited_ids)}")
-
+        print(f"{len(limited_ids)} hit the rate limit and are inconclusive. Wait a few minutes, then run the same "
+              "command with --resume to re-run only those.")
     if args.report:
-        lines = [f"# Scenario report\n\nModel `{model}` · {passed}/{len(results)} passed\n"]
-        for sc, ok, fails, transcript, secs in results:
-            lines.append(f"## {'✅' if ok else '❌'} {sc['id']}\n\n{sc.get('description', '')}\n")
-            for f in fails:
-                lines.append(f"- **{f}**")
-            for user, reply, steps, notes in transcript:
-                lines.append(f"\n> **Caller:** {user}\n>\n> **Agent:** {reply}\n>\n> `{' → '.join(steps)}`"
-                             + (f" ⚠️ {'; '.join(notes)}" if notes else ""))
-            lines.append("")
-        Path(args.report).write_text("\n".join(lines), encoding="utf-8")
+        write_report(args.report, scenarios, records, model)
         print(f"report written to {args.report}")
-    return 0 if passed == len(results) else 1
+    return 0 if passed == len(ordered) else 1
 
+
+def write_report(path: str, scenarios: list[dict], records: dict[str, dict], model: str) -> None:
+    """Rewritten after every scenario, so an interrupted run still leaves a usable report."""
+    ordered = [(sc, records[sc["id"]]) for sc in scenarios if sc["id"] in records]
+    passed = sum(r["label"] == "PASS" for _, r in ordered)
+    pending = len(scenarios) - len(ordered)
+    lines = [f"# Scenario report\n\nModel `{model}` · {passed}/{len(ordered)} passed"
+             + (f" · {pending} not run yet" if pending else "") + "\n"]
+    for sc, r in ordered:
+        lines.append(f"## {sc['id']} ({r['label']})\n\n{sc.get('description', '')}\n")
+        for f in r["fails"]:
+            lines.append(f"- **{f}**")
+        for user, reply, steps, notes in r["transcript"]:
+            lines.append(f"\n> **Caller:** {user}\n>\n> **Agent:** {reply}\n>\n> `{' → '.join(steps)}`"
+                         + (f" (note: {'; '.join(notes)})" if notes else ""))
+        lines.append("")
+    Path(path).write_text("\n".join(lines), encoding="utf-8")
 
 if __name__ == "__main__":
     raise SystemExit(main())

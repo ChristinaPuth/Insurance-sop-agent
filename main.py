@@ -11,7 +11,7 @@ import sys
 
 from agent.config import get_today, load_settings
 from agent.data import load_data
-from agent.llm_service import OpenAILLM
+from agent.llm_service import OpenAILLM, resolve_connection
 from agent.orchestrator import handle_turn, start_session
 from agent.schemas import Phase
 
@@ -25,7 +25,9 @@ def main() -> int:
     if not settings.api_key:
         print("Set OPENAI_API_KEY (see .env.example).", file=sys.stderr)
         return 1
-    llm = OpenAILLM(settings.api_key, settings.extract_model, settings.response_model, settings.base_url)
+    conn = resolve_connection(settings)
+    llm = OpenAILLM(conn.api_key, settings.extract_model if settings.model_configured else conn.model,
+                    conn.model, conn.base_url)
     data, today = load_data(settings.data_dir), get_today(settings)
 
     state = start_session("SES-CLI0")

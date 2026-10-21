@@ -21,7 +21,7 @@ def test_policy_number_does_not_count(data):  # covers V-2
     assert not r.ok
 
 
-def test_all_wrong_fails(data):
+def test_all_wrong_fails(data):  # covers V-1
     r = verify({"full_name": "John Doe", "dob": "1970-01-01", "id_last4": "0000"}, data.policyholders)
     assert not r.ok
 
@@ -81,7 +81,7 @@ def test_phone_normalization(raw, expected):  # covers E-1
     assert normalize.phone(raw) == expected
 
 
-def test_dotenv_loading_never_overrides_env(tmp_path, monkeypatch):  # config
+def test_dotenv_loading_never_overrides_env(tmp_path, monkeypatch):  # covers K-1
     from agent.config import load_dotenv
     env = tmp_path / ".env"
     env.write_text('# comment\nOPENAI_API_KEY="from-file"\nMODEL=m1\nOPENAI_BASE_URL=\nexport DEMO_TODAY=2026-02-15\n')
@@ -95,3 +95,36 @@ def test_dotenv_loading_never_overrides_env(tmp_path, monkeypatch):  # config
     assert os.environ["MODEL"] == "from-shell"          # real env wins
     assert "OPENAI_BASE_URL" not in os.environ          # empty values skipped
     assert os.environ["DEMO_TODAY"] == "2026-02-15"
+
+
+def test_dotenv_edits_apply_without_restart(tmp_path, monkeypatch):  # covers K-1
+    from agent.config import load_dotenv
+    import os
+    env = tmp_path / ".env"
+    monkeypatch.delenv("SOP_TEST_MODEL", raising=False)
+    env.write_text("SOP_TEST_MODEL=first\n")
+    load_dotenv(env)
+    assert os.environ["SOP_TEST_MODEL"] == "first"
+    env.write_text("SOP_TEST_MODEL=second\n")
+    load_dotenv(env)
+    assert os.environ["SOP_TEST_MODEL"] == "second"            # edited value picked up
+    env.write_text("# removed\n")
+    load_dotenv(env)
+    assert "SOP_TEST_MODEL" not in os.environ                   # removed line is dropped
+
+
+def test_site_settings_win_then_env_then_defaults():  # covers K-1, K-2, K-3, U-7
+    from agent.config import Settings
+    from agent.llm_service import resolve_connection
+    from pathlib import Path
+    env = Settings(api_key="gsk_env", base_url=None, extract_model="openai/gpt-oss-20b",
+                   response_model="openai/gpt-oss-20b", data_dir=Path("."), demo_today=None, model_configured=True)
+    c = resolve_connection(env)
+    assert (c.api_key, c.model, c.key_source) == ("gsk_env", "openai/gpt-oss-20b", ".env / environment")
+    assert c.base_url == "https://api.groq.com/openai/v1"
+    c = resolve_connection(env, typed_key="sk-site", typed_model="gpt-4.1-mini")
+    assert (c.api_key, c.model, c.key_source, c.model_source) == ("sk-site", "gpt-4.1-mini", "site settings", "site settings")
+    assert c.base_url is None                                   # sk- key: OpenAI
+    bare = Settings(api_key="gsk_x", base_url=None, extract_model="gpt-4.1-mini", response_model="gpt-4.1-mini",
+                    data_dir=Path("."), demo_today=None, model_configured=False)
+    assert resolve_connection(bare).model == "openai/gpt-oss-120b"  # provider default only when nothing is set

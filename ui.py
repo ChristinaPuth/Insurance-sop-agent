@@ -34,7 +34,18 @@ CSS = """
 
 /* chrome */
 [data-testid="stHeader"] { background: transparent; }
-[data-testid="stToolbar"], [data-testid="stDecoration"], footer { display: none !important; }
+/* keep the toolbar (it holds the button that reopens the sidebar); hide only Deploy and the app menu */
+[data-testid="stToolbarActions"], [data-testid="stMainMenu"], [data-testid="stAppDeployButton"],
+[data-testid="stDecoration"], footer { display: none !important; }
+
+/* make "reopen sidebar" an obvious, labelled button */
+[data-testid="stExpandSidebarButton"] { background: var(--navy) !important; color: #fff !important;
+  border-radius: 999px !important; padding: 6px 14px 6px 10px !important; width: auto !important;
+  height: auto !important; gap: 6px; box-shadow: 0 2px 8px rgba(11, 31, 58, .25); }
+[data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"] { color: #fff !important; }
+[data-testid="stExpandSidebarButton"]::after { content: "Menu"; font-family: 'Inter', system-ui, sans-serif;
+  font-size: .82rem; font-weight: 600; color: #fff; }
+[data-testid="stExpandSidebarButton"]:hover { background: var(--navy-2) !important; }
 .block-container { max-width: 1040px; padding-top: 1.4rem; padding-bottom: 7rem; }
 
 /* header */
@@ -125,6 +136,12 @@ CSS = """
 
 [data-testid="stChatMessageAvatarCustom"] [data-testid="stIconMaterial"] { color: inherit !important; }
 
+/* calendar popup opens over the navy sidebar theme: keep day numbers readable */
+[data-testid="stDateInputCalendar"] { color: #E2E8F0; }
+[data-testid="stDateInputCalendar"] [role="gridcell"] [role="button"] { color: #E2E8F0; }
+[data-testid="stDateInputCalendar"] [role="gridcell"] [role="button"][data-outside-month],
+[data-testid="stDateInputCalendar"] [role="gridcell"] [role="button"][data-disabled] { color: #5B6F8F; }
+
 /* suggested replies */
 .sugg-label { font-size: .75rem; color: var(--muted); margin: 4px 0 6px; font-weight: 500; }
 [class*="st-key-sugg_"] button { border-radius: 999px; min-height: 0; padding: 4px 12px; background: var(--surface);
@@ -133,7 +150,9 @@ CSS = """
 [class*="st-key-sugg_"] button:hover { background: var(--teal-soft); border-color: var(--teal); }
 
 @media (max-width: 640px) {
-  .block-container { padding-left: 1rem; padding-right: 1rem; }
+  .block-container { padding-left: 1rem; padding-right: 1rem; padding-top: 3.6rem; }
+  [data-testid="stHeader"] { background: rgba(245, 247, 250, .94); backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--line); }
   .cards { grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 14px; }
   .card { padding: 10px 12px; }
   .card:last-child { grid-column: 1 / -1; }
@@ -232,7 +251,8 @@ def status_cards(sop: SessionState) -> str:
 
 def empty_state() -> str:
     return ('<div class="empty"><h3>Connect a model to start</h3>'
-            '<ol><li>Open <b>Connection</b> in the sidebar and paste an API key (a free Groq key works).</li>'
+            '<ol><li>Open the sidebar (the <b>Menu</b> button at the top left if it is closed), go to '
+            '<b>Connection</b> and paste an API key (a free Groq key works).</li>'
             '<li>Pick a <b>test scenario</b>, or type as a caller below.</li>'
             '<li>Open <b>Harness trace</b> under any reply to see what the SOP decided.</li></ol></div>')
 

@@ -24,13 +24,13 @@ def test_deadline_before_and_after(data):  # covers F-5, F-6
     assert "already passed" in after and "within a week" not in after
 
 
-def test_unknown_fact_ids_are_dropped(data):  # covers T-3 ①
+def test_unknown_fact_ids_are_dropped(data):  # covers T-3 (1)
     d, _ = directive(data)
     reply = AgentReply(text="It is denied.", used_fact_ids=["CL-2048:status", "CL-9999:made_up"])
     assert [f.fact_id for f in facts_said(reply, d)] == ["CL-2048:status"]
 
 
-def test_claimed_fact_must_appear_in_text(data):  # covers T-3 ②
+def test_claimed_fact_must_appear_in_text(data):  # covers T-3 (2)
     d, _ = directive(data)
     reply = AgentReply(text="Your claim is under review.", used_fact_ids=["CL-2048:status", "CL-2048:deadline"])
     assert facts_said(reply, d) == []

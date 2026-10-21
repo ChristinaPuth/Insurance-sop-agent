@@ -26,26 +26,47 @@ class Settings:
     response_model: str
     data_dir: Path
     demo_today: date | None
+    model_configured: bool = False    # MODEL / RESPONSE_MODEL set explicitly (not the built-in default)
     thresholds: Thresholds = Thresholds()
 
 
-def load_dotenv(path: Path = ROOT / ".env") -> None:
-    """Read KEY=VALUE lines from a local .env (git- and docker-ignored).
-    Real environment variables always win; empty values are skipped."""
+_FROM_DOTENV: dict[str, str] = {}     # keys this module put into os.environ, so a re-read can update them
+
+
+def _parse_dotenv(path: Path) -> dict[str, str]:
+    out: dict[str, str] = {}
     if not path.is_file():
-        return
+        return out
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
         key, value = key.strip().removeprefix("export ").strip(), value.strip().strip('"').strip("'")
-        if value and key not in os.environ:
-            os.environ[key] = value
+        if value:
+            out[key] = value
+    return out
+
+
+def load_dotenv(path: Path = ROOT / ".env") -> None:
+    """Read KEY=VALUE lines from a local .env (git- and docker-ignored). Safe to call on every request:
+    edits to the file take effect without a restart, and lines that were removed or emptied are dropped.
+    Variables set in the real environment (shell, Docker -e, hosting secrets) always win (K-1)."""
+    fresh = _parse_dotenv(path)
+    for key in list(_FROM_DOTENV):
+        if key not in fresh and os.environ.get(key) == _FROM_DOTENV[key]:
+            os.environ.pop(key, None)
+            del _FROM_DOTENV[key]
+    for key, value in fresh.items():
+        if key in os.environ and key not in _FROM_DOTENV:
+            continue                                   # set outside .env: leave it alone
+        os.environ[key] = value
+        _FROM_DOTENV[key] = value
 
 
 def load_settings() -> Settings:
     load_dotenv()
+    configured = bool(os.getenv("MODEL") or os.getenv("RESPONSE_MODEL"))
     model = os.getenv("MODEL", DEFAULT_MODEL)
     today = os.getenv("DEMO_TODAY")
     return Settings(
@@ -55,6 +76,7 @@ def load_settings() -> Settings:
         response_model=os.getenv("RESPONSE_MODEL", model),
         data_dir=Path(os.getenv("DATA_DIR", ROOT / "insurance_claims" / "fixtures")),
         demo_today=date.fromisoformat(today) if today else None,
+        model_configured=configured,
     )
 
 

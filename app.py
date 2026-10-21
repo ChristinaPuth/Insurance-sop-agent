@@ -10,15 +10,15 @@ from datetime import date
 import streamlit as st
 
 import ui
-from agent.config import DEFAULT_MODEL, load_settings
+from agent.config import load_settings
 from agent.claims import repo_for
 from agent.data import InsuranceData, load_data
-from agent.llm_service import OpenAILLM, default_base_url, default_model
+from agent.llm_service import OpenAILLM, resolve_connection
 from agent.orchestrator import handle_turn, start_session
 from agent.safety import mask_value
 from agent.schemas import Phase
 
-SETTINGS = load_settings()
+SETTINGS = load_settings()        # Streamlit re-runs this script on every interaction, so .env edits apply at once
 
 # one-click openers for the demo: (label, icon, first caller message, consent scenario)
 QUICK = [
@@ -37,7 +37,8 @@ QUICK = [
 CONSENT_LABELS = {"default": "Approves after one check", "timeout": "Never approves (timeout)"}
 AVATARS = {"agent": ":material/support_agent:", "user": ":material/person:"}
 
-st.set_page_config(page_title="Claims Assistant", page_icon=":material/shield:", layout="wide")
+st.set_page_config(page_title="Claims Assistant", page_icon=":material/shield:", layout="wide",
+                   initial_sidebar_state="auto")   # open on desktop, closed on phones (Menu button reopens it)
 st.markdown(ui.CSS, unsafe_allow_html=True)
 
 
@@ -65,12 +66,16 @@ with st.sidebar:
     st.markdown(ui.sidebar_brand(), unsafe_allow_html=True)
 
     with st.expander("Connection", icon=":material/key:", expanded=not env_key):
+        st.caption("Leave a field empty to use the value from .env. Anything typed here takes priority.")
         typed_key = st.text_input("API key", type="password",
-                                  placeholder="Using OPENAI_API_KEY from environment" if env_key else "Paste key",
+                                  placeholder="Using the key from .env" if env_key else "Paste key",
                                   help="Kept only in this browser session; never logged or stored.")
-        base_url = st.text_input("Base URL (optional)", value=SETTINGS.base_url or "",
-                                 help="Any OpenAI-compatible endpoint. Groq keys are detected automatically.")
-        model = st.text_input("Model", value=SETTINGS.response_model)
+        typed_base = st.text_input("Base URL (optional)",
+                                   placeholder=SETTINGS.base_url or "Auto: OpenAI, or Groq for gsk_ keys",
+                                   help="Any OpenAI-compatible endpoint.")
+        typed_model = st.text_input("Model",
+                                    placeholder=(SETTINGS.response_model if SETTINGS.model_configured
+                                                 else "Auto: gpt-4.1-mini, or gpt-oss-120b on Groq"))
         conn_note = st.empty()
 
     with st.expander("Test scenarios", icon=":material/science:", expanded=True):
@@ -82,8 +87,21 @@ with st.sidebar:
                 st.session_state.queued = message
                 st.rerun()
         st.divider()
-        default_today = SETTINGS.demo_today or date(2026, 2, 15)
-        today = st.date_input("Demo date", value=default_today, help="Appeal deadlines are judged against this date.")
+        # fixed, meaningful dates instead of a calendar (the picker follows the browser's language)
+        date_options = {"Feb 15, 2026 · before CL-2048's appeal deadline": date(2026, 2, 15),
+                        "Oct 19, 2026 · after the appeal deadline": date(2026, 10, 19),
+                        f"Today ({date.today():%b %d, %Y})": date.today()}
+        if SETTINGS.demo_today and SETTINGS.demo_today not in date_options.values():
+            date_options = {f"{SETTINGS.demo_today:%b %d, %Y} · from DEMO_TODAY": SETTINGS.demo_today, **date_options}
+        default_label = next(k for k, v in date_options.items() if v == (SETTINGS.demo_today or date(2026, 2, 15)))
+        custom = "Custom date…"
+        labels = [*date_options, custom]
+        today_label = st.selectbox("Demo date", labels, index=labels.index(default_label),
+                                   help="Appeal deadlines are judged against this date.")
+        if today_label == custom:           # only one date ever applies: the calendar replaces the preset
+            today = st.date_input("Pick a date", value=date(2026, 2, 15), label_visibility="collapsed")
+        else:
+            today = date_options[today_label]
         consent_choice = st.selectbox("Policyholder authorization (mock)", list(CONSENT_LABELS),
                                       format_func=CONSENT_LABELS.get, key="consent_choice",
                                       help="How the policyholder responds when a representative calls.")
@@ -94,14 +112,12 @@ with st.sidebar:
             st.rerun()
 
 # ---------------------------------------------------------------- per-session LLM client
-api_key = typed_key or env_key
+conn = resolve_connection(SETTINGS, typed_key, typed_base, typed_model)   # site first, then .env (K-1..K-3)
+api_key, base_url, model = conn.api_key, conn.base_url, conn.model
 notes = []
-if api_key and not base_url and default_base_url(api_key):
-    base_url = default_base_url(api_key)
-    notes.append(f"Endpoint detected from the key: {base_url}")
-if api_key and model == DEFAULT_MODEL and default_model(api_key) and not SETTINGS.base_url:
-    model = default_model(api_key)      # the OpenAI default model does not exist on other providers
-    notes.append(f"Model set for this provider: {model}")
+if api_key:
+    notes.append(f"Key: {conn.key_source}  \nModel: **{model}** ({conn.model_source})  \n"
+                 f"Endpoint: {base_url or 'api.openai.com'} ({conn.base_source})")
 llm_key = (api_key, base_url, model)
 if api_key and st.session_state.get("llm_key") != llm_key:
     try:

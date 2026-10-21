@@ -12,7 +12,8 @@ the SOP has already decided on. Strict where the SOP demands it, flexible where 
 
 - Hosted demo: **https://insurance-sop-agentgit-ymsmcdq8a79vh76rvz7jgz.streamlit.app/**
   (bring your own API key: paste it in the sidebar; a free Groq key works)
-- Design document (Chinese): [`docs/保险理赔SOP_Harness设计文档.docx`](docs/)
+- Design document: [`docs/Insurance_SOP_Harness_Design.docx`](docs/Insurance_SOP_Harness_Design.docx)
+- Test report: [`docs/test-report.md`](docs/test-report.md)
 - Numbered rules every test refers to: [`docs/SPEC.md`](docs/SPEC.md)
 
 ---
@@ -53,7 +54,8 @@ On Intel Macs, add `--only-binary pyarrow` to the install if the pyarrow build f
 | `DEMO_TODAY` | UI: 2026-02-15 | Date used for appeal deadlines. Unset = real date (CL-2048's deadline has then passed) |
 | `DATA_DIR` | `insurance_claims/fixtures` | Fixture directory (read-only) |
 
-Settings come from real environment variables first, then `.env`.
+In the web UI, anything typed in the sidebar's Connection section wins; empty fields fall back to environment
+variables, then `.env`, then the defaults. `.env` is re-read on every request, so editing it needs no restart.
 
 ---
 
@@ -174,7 +176,9 @@ approval. Each turn checks state and forbidden or required phrases, never exact 
 ```
 
 It shows live progress, checks the key first, retries rate limits, and labels rate-limited scenarios
-separately from real failures.
+separately from real failures. Progress is saved after every scenario: if a run stops (Ctrl+C, network,
+quota), run the same command with `--resume`: scenarios that already passed are skipped, and failed, rate-limited
+or missing ones run again.
 
 ---
 
@@ -200,7 +204,7 @@ agent/            harness code
   facts.py          grounded facts + checks    safety.py          masking + output tripwire
   prompts.py        both system prompts        fallbacks.py       fixed text per action
 insurance_claims/fixtures/   provided test data (read-only)
-docs/             design document, SPEC.md, scenario report
+docs/             design document, SPEC.md, test and scenario reports
 tests/            pytest suite + scenarios.yaml
 scripts/          run_scenarios.py
 app.py            Streamlit UI              main.py   terminal chat
