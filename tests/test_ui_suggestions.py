@@ -41,3 +41,32 @@ def test_consent_pending_suggestions(run):  # covers U-5, A-7
     from .test_consent import DAVID, DAVID_EXT, session
     s, _ = run([(DAVID, DAVID_EXT)], state=session())
     assert ui.suggestions(s)[0] == "She says she approved it."
+
+
+def test_guide_table_steps_are_offered_as_suggestions(run):  # covers U-5, U-9: the in-app guide stays accurate
+    # Reference case: "No, that's all." then "Yes, please send it."
+    s, _ = run([(GOLDEN, GOLDEN_EXT)])
+    assert "No, that's all." in ui.suggestions(s, claim_has_documents=True)
+    s, _ = run([("No, that's all.", {"is_done": True})], state=s)
+    assert "Yes, please send it." in ui.suggestions(s)
+
+    # Angry caller: Margaret's details offered, then "Yes, that's the one."
+    s, _ = run([("I already told you who I am. Just tell me why my claim was denied.",
+                 {"intent": "denial_question", "asks_to_skip": True, "asks_question": True,
+                  "emotion": {"type": "frustration", "intensity": 3}})])
+    assert ui.suggestions(s)[0].startswith("My name is Margaret Chen")
+    s, _ = run([("My name is Margaret Chen, DOB 1985-03-15, SSN last four 4472.",
+                 {"identity": {"full_name": "Margaret Chen", "dob": "1985-03-15", "id_last4": "4472",
+                               "id_type_stated": "ssn"}})], state=s)
+    assert "Yes, that's the one." in ui.suggestions(s)
+
+    # Off-topic: "What is RL?" offered; after the third, "No thanks, let's continue."
+    s, _ = run([("What is RL?", {"off_topic": "unrelated"})])
+    assert "What is RL?" in ui.suggestions(s)
+    s, _ = run([("What is RL?", {"off_topic": "unrelated"})] * 2, state=s)
+    assert "No thanks, let's continue." in ui.suggestions(s)
+
+    # Representative, no approval: "Any update?" offered while waiting
+    from .test_consent import DAVID, DAVID_EXT, session
+    s, _ = run([(DAVID, DAVID_EXT)], state=session("timeout"))
+    assert "Any update?" in ui.suggestions(s)

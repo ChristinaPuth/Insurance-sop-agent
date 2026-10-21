@@ -33,6 +33,21 @@ No installation needed. You only need a free API key.
 5. **Look inside.** Open **Harness trace** under a reply to see what the model extracted and what the rules
    decided. **Reset conversation** starts over.
 
+### What each test scenario shows
+
+Each test scenario starts a new conversation. The suggested replies under the chat always offer the next step, so most scenarios can be finished by tapping them.
+
+| Scenario | What it tests | How to finish it | Expected |
+|---|---|---|---|
+| **Reference case** | The full workflow | Tap the suggested replies: "No, that's all." → "Yes, please send it." | Claim CL-2048 explained, email offered, summary in the **Mock outbox** at the bottom |
+| **Angry caller** | Empathy without skipping verification | Tap the suggested reply with Margaret's details, confirm the claim ("Yes, that's the one."), then finish as above | No claim details until verified; the held question is answered; same email flow |
+| **Off-topic question** | Staying in scope | Tap "What is RL?" two more times, decline the human ("No thanks, let's continue."), then tap Margaret's details | Polite refusals, a human offered on the third; back to normal after that |
+| **Wrong identity** | Strict verification | Type the same details with the phone ending in 2831, then 2832 | "Couldn't verify" without naming the wrong field; handoff after 3 tries. **No email: correct by design** |
+| **Representative (son)** | Acting for someone else | Tap "She says she approved it.", then finish as in the reference case | Nothing shared before approval; email goes to the **policyholder's** address |
+| **Representative, no approval** | Consent that never comes | Tap "Any update?" until the call ends | Nothing shared; handoff. **No email: correct by design** |
+
+### If something goes wrong
+
 | Message | What to do |
 |---|---|
 | "[Setup problem] ... API key was rejected" | The key is incomplete, deleted or for another service. Paste it again. |

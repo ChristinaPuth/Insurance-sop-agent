@@ -1,6 +1,6 @@
 # Test report
 
-Generated 2026-10-20 19:10 · **110/110 passed** · 0.60s
+Generated 2026-10-20 20:28 · **111/111 passed** · 0.47s
 
 Unit and workflow tests run against a scripted `FakeLLM` (no API key, deterministic). Real-model
 conversations are covered separately by `scripts/run_scenarios.py` (see `scenario-report.md`).
@@ -15,7 +15,7 @@ The rule column refers to the numbered rules in [`SPEC.md`](SPEC.md).
 | Emotion, persuasion ladder, scope (`test_emotion.py`) | 13 | PASS 13/13 |
 | Representative and authorization (`test_consent.py`) | 9 | PASS 9/9 |
 | End-to-end workflow (`test_workflow.py`) | 35 | PASS 35/35 |
-| UI suggested replies (`test_ui_suggestions.py`) | 6 | PASS 6/6 |
+| UI suggested replies (`test_ui_suggestions.py`) | 7 | PASS 7/7 |
 
 ## Identity verification
 
@@ -182,3 +182,4 @@ The rule column refers to the numbered rules in [`SPEC.md`](SPEC.md).
 | PASS | processing phase offers followups | U-5 |
 | PASS | email offer and terminal states | U-5 |
 | PASS | consent pending suggestions | U-5, A-7 |
+| PASS | guide table steps are offered as suggestions | U-5, U-9: the in-app guide stays accurate |
