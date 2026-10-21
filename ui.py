@@ -333,3 +333,40 @@ def suggestions(sop: SessionState, claim_has_documents: bool = False) -> list[st
     if claim_has_documents:
         out.append("One more question: what file format do you need?")
     return out
+
+
+GUIDE_MD = """
+**1. Get a free API key (about 2 minutes)**
+- Go to [console.groq.com](https://console.groq.com), sign up with an email or GitHub account.
+- Open **API Keys** → **Create API Key**, give it any name, and copy the key. It starts with `gsk_`.
+- An OpenAI key (starts with `sk-`) works too.
+
+**2. Connect**
+- Open the sidebar. On a phone or narrow window, tap **Menu** at the top left.
+- Under **Connection**, paste the key into **API key**. **Leave Base URL and Model empty**; they are filled in
+  automatically.
+- Below the fields you should now see the model in use, for example `openai/gpt-oss-120b` for a Groq key.
+
+**3. Try it**
+- Click a button under **Test scenarios**, for example **Reference case**, or tap one of the suggested replies
+  under the chat. You can also type as if you were the caller.
+- Test caller (fictional data): **Margaret Chen**, date of birth **1985-03-15**, SSN last 4 **4472**, phone
+  **650-521-2836**, email **margaret@email.com**. She has a denied healthcare claim from January.
+- Other test callers: **Ava Lopez** (1990-08-21, SSN 9180, no claims) and **David Chen**, her son, calling on
+  Margaret's behalf.
+
+**4. What to look at**
+- The progress bar and the three cards at the top show where the conversation is in the process.
+- Open **Harness trace** under any reply to see what the AI picked up and what the rules decided.
+- **Reset conversation** in the sidebar starts over.
+
+**If something goes wrong**
+- **"[Setup problem] ... API key was rejected"**: the key is incomplete, deleted, or for a different service.
+  Paste it again.
+- **"[Setup problem] ... model name wasn't found"**: empty the **Model** field, or use the full name
+  (`openai/gpt-oss-120b` on Groq, `gpt-4.1-mini` on OpenAI).
+- **"Our system is busy"**: the free key hit its usage limit. Wait a few minutes and send the message again.
+- **The sidebar is gone**: tap **Menu** at the top left.
+
+Your key stays in this browser tab only; it is never saved or shared. Avoid screenshots with the key visible.
+"""

@@ -159,8 +159,8 @@ st.markdown(ui.header(sop.session_id, model if connected else None, today.isofor
             unsafe_allow_html=True)
 st.markdown(ui.stepper(sop), unsafe_allow_html=True)
 st.markdown(ui.status_cards(sop), unsafe_allow_html=True)
-if not api_key:
-    st.markdown(ui.empty_state(), unsafe_allow_html=True)
+with st.expander("How to use this demo", icon=":material/help:", expanded=not connected):
+    st.markdown(ui.GUIDE_MD)
 
 traces = {t.turn: t for t in sop.trace}
 for role, text, turn in st.session_state.display:

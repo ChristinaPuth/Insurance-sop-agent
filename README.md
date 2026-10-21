@@ -18,6 +18,30 @@ the SOP has already decided on. Strict where the SOP demands it, flexible where 
 
 ---
 
+## Using the live demo, step by step
+
+No installation needed. You only need a free API key.
+
+1. **Get a key.** Go to [console.groq.com](https://console.groq.com), sign up, open **API Keys** →
+   **Create API Key**, and copy it (it starts with `gsk_`). An OpenAI key (`sk-...`) also works.
+2. **Open the demo** (link at the top of this page). On a phone or narrow window, tap **Menu** at the top left
+   to open the sidebar.
+3. **Connect.** In the sidebar under **Connection**, paste the key into **API key**. Leave **Base URL** and
+   **Model** empty; they are filled in automatically. The line under the fields shows the model in use.
+4. **Try it.** Click **Reference case** under **Test scenarios**, tap a suggested reply under the chat, or type
+   as the caller. Fictional test caller: Margaret Chen, born 1985-03-15, SSN last 4 4472, phone 650-521-2836.
+5. **Look inside.** Open **Harness trace** under a reply to see what the model extracted and what the rules
+   decided. **Reset conversation** starts over.
+
+| Message | What to do |
+|---|---|
+| "[Setup problem] ... API key was rejected" | The key is incomplete, deleted or for another service. Paste it again. |
+| "[Setup problem] ... model name wasn't found" | Empty the **Model** field, or use the full name: `openai/gpt-oss-120b` (Groq) or `gpt-4.1-mini` (OpenAI). |
+| "Our system is busy" | The free key hit its usage limit. Wait a few minutes and resend. |
+| The sidebar disappeared | Tap **Menu** at the top left. |
+
+The key stays in your browser tab only. It is never stored by the demo.
+
 ## Quick start
 
 You need an API key for any OpenAI-compatible model. A free [Groq](https://console.groq.com) key works.

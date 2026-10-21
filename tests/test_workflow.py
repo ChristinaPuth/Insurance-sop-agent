@@ -311,3 +311,29 @@ def test_question_during_email_offer_is_answered_even_if_read_as_unclear(run):  
          {"asks_question": True, "followup_topic": "submission_method", "email_decision": "unclear"}),
     ])
     assert s.trace[-1].steps == ["ANSWER_FOLLOWUP", "OFFER_EMAIL"] and not s.email_reconfirmed
+
+
+def test_setup_errors_say_what_to_fix(data):  # covers T-9
+    from agent.llm_service import LLMError
+
+    def bad(status):
+        class Bad(FakeLLM):
+            def extract(self, message, context):
+                raise LLMError(f"API call failed ({status})", config_problem=True, status=status)
+        return Bad([])
+
+    _, model_reply = handle_turn(start_session("SES-T"), GOLDEN, bad(404), data, TODAY)
+    _, key_reply = handle_turn(start_session("SES-T"), GOLDEN, bad(401), data, TODAY)
+    assert "model name" in model_reply and "openai/gpt-oss-120b" in model_reply
+    assert "API key was rejected" in key_reply
+
+
+def test_groq_model_name_without_prefix_is_corrected():  # covers K-3
+    from pathlib import Path
+    from agent.config import Settings
+    from agent.llm_service import resolve_connection
+    s = Settings(api_key="gsk_x", base_url=None, extract_model="gpt-4.1-mini", response_model="gpt-4.1-mini",
+                 data_dir=Path("."), demo_today=None, model_configured=False)
+    c = resolve_connection(s, typed_model="gpt-oss-20b")
+    assert c.model == "openai/gpt-oss-20b" and "corrected" in c.model_source
+    assert resolve_connection(s, typed_key="sk-x", typed_model="gpt-oss-20b").model == "gpt-oss-20b"  # not Groq

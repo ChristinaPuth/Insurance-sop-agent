@@ -201,7 +201,9 @@ def handle_turn(state: SessionState, user_msg: str, llm: LLM | None, data: Insur
         notes.append(f"extraction failed: {exc}")
         directive = Directive()
         directive.add(Step(action=Action.CLARIFY))
-        text = (fallbacks.CONFIG_ERROR if exc.config_problem
+        config_text = (fallbacks.CONFIG_ERROR_MODEL if exc.status == 404 else
+                       fallbacks.CONFIG_ERROR_KEY if exc.status in (401, 403) else fallbacks.CONFIG_ERROR)
+        text = (config_text if exc.config_problem
                 else fallbacks.BUSY if exc.rate_limited else fallbacks.render(directive))
         s.history += [Turn(role="user", text=mask_message(user_msg, ExtractionResult().identity)),
                       Turn(role="agent", text=text)]

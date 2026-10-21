@@ -77,7 +77,7 @@ copy state → extract (model, temperature 0) → keyword safety nets → merge 
 | T-6 | Date and amount check: every amount and date in the reply must equal a value from this turn's allowed facts or from this turn's action parameters (code-built text such as candidate claim summaries). Several date formats are recognized. On a mismatch, the reply is dropped, the fallback text is used, and the trace records why. |
 | T-7 | Sentences appended under T-4 are written by code, so their facts are recorded without the T-3 check. |
 | T-8 | The reply call receives `CALLER_LATEST_MESSAGE` (this turn's message, masked) so it can answer the question that was actually asked. |
-| T-9 | API errors: 401/403/404 are setup problems and get a fixed "[Setup problem]" message; 429 is a rate limit and gets "our system is busy, please resend"; anything else follows T-1 or T-2. Error text holds only the exception type and status code, never request headers or the key. The SDK retries 429s after the wait the server asks for. |
+| T-9 | API errors: 401/403 are setup problems and get a fixed "[Setup problem]" message about the key; 404 gets one about the model name; 429 is a rate limit and gets "our system is busy, please resend"; anything else follows T-1 or T-2. Error text holds only the exception type and status code, never request headers or the key. The SDK retries 429s after the wait the server asks for. |
 
 ---
 
@@ -255,7 +255,7 @@ copy state → extract (model, temperature 0) → keyword safety nets → merge 
 |---|---|
 | K-1 | Settings come from real environment variables first, then the project's `.env`, then defaults. Empty values in `.env` are ignored. `.env` is read again on every request, so edits apply without a restart and removed lines stop applying. In the UI, a key, base URL or model typed in the sidebar takes priority over all of these (U-7). |
 | K-2 | Any OpenAI-compatible endpoint works. With an empty base URL and a key starting with `gsk_`, the Groq endpoint is used. |
-| K-3 | If the model is still the built-in default (`gpt-4.1-mini`) and the key belongs to another known provider, that provider's default is used instead (Groq: `openai/gpt-oss-120b`). A model set by the user or in `.env` is never replaced. |
+| K-3 | If the model is still the built-in default (`gpt-4.1-mini`) and the key belongs to another known provider, that provider's default is used instead (Groq: `openai/gpt-oss-120b`). A model set by the user or in `.env` is never replaced, except that on Groq a bare `gpt-oss-...` name gets the `openai/` prefix Groq requires. |
 | K-4 | Extraction and replies can use different models (`EXTRACT_MODEL`, `RESPONSE_MODEL`); both default to `MODEL`. |
 
 | Variable | Default | Notes |
@@ -349,6 +349,7 @@ Priority: handoff and identity lock first, then off-topic handling, then the pha
 | U-6 | Demo date: three presets (before the deadline, after it, today) plus "Custom date". Only one date applies; the calendar appears only when the custom option is chosen. |
 | U-7 | Connection fields in the sidebar start empty, with the current `.env` value shown as a hint. A value typed there wins for that browser session; an empty field falls back to `.env`, then to the defaults (K-2, K-3). The sidebar says where the key, model and endpoint came from. The mock outbox and the internal handoff summary are shown in their own panels. |
 | U-8 | Everything inserted into HTML is escaped. Conversation text is shown with Streamlit's own components. |
+| U-9 | A "How to use this demo" panel gives step-by-step instructions (getting a key, connecting, test callers, troubleshooting). It is open until a model is connected. |
 
 ---
 

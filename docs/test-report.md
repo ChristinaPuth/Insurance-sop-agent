@@ -1,6 +1,6 @@
 # Test report
 
-Generated 2026-10-20 18:54 · **108/108 passed** · 0.39s
+Generated 2026-10-20 19:10 · **110/110 passed** · 0.60s
 
 Unit and workflow tests run against a scripted `FakeLLM` (no API key, deterministic). Real-model
 conversations are covered separately by `scripts/run_scenarios.py` (see `scenario-report.md`).
@@ -14,7 +14,7 @@ The rule column refers to the numbered rules in [`SPEC.md`](SPEC.md).
 | FAQ guideline templates (`test_guidance.py`) | 12 | PASS 12/12 |
 | Emotion, persuasion ladder, scope (`test_emotion.py`) | 13 | PASS 13/13 |
 | Representative and authorization (`test_consent.py`) | 9 | PASS 9/9 |
-| End-to-end workflow (`test_workflow.py`) | 33 | PASS 33/33 |
+| End-to-end workflow (`test_workflow.py`) | 35 | PASS 35/35 |
 | UI suggested replies (`test_ui_suggestions.py`) | 6 | PASS 6/6 |
 
 ## Identity verification
@@ -167,6 +167,8 @@ The rule column refers to the numbered rules in [`SPEC.md`](SPEC.md).
 | PASS | field refusal tagged as verification refusal | M-6, E-7: model over-reads one field as all |
 | PASS | field refusal beats a skip flag | M-6: model flagged both "skip" and one named field |
 | PASS | question during email offer is answered even if read as unclear | S-7, P-8 |
+| PASS | setup errors say what to fix | T-9 |
+| PASS | groq model name without prefix is corrected | K-3 |
 
 ## UI suggested replies
 

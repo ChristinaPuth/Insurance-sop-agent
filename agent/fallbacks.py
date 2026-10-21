@@ -7,6 +7,12 @@ GREETING = ("Hi, thanks for contacting claims support. Before I can look at any 
             "your identity. Please share at least three of the following: your full name, date of birth, "
             "phone number, email on file, or the last 4 digits of your SSN or national ID.")
 
+CONFIG_ERROR_KEY = ("[Setup problem] The API key was rejected. Check that the key is complete and still active, and "
+                    "that it belongs to the service shown under Connection (a Groq key starts with gsk_, an OpenAI "
+                    "key with sk-). Then send your message again.")
+CONFIG_ERROR_MODEL = ("[Setup problem] The model name wasn't found at this service. Leave the Model field empty to "
+                      "use the default, or use the full name (on Groq: openai/gpt-oss-120b or openai/gpt-oss-20b; "
+                      "on OpenAI: gpt-4.1-mini). Then send your message again.")
 CONFIG_ERROR = ("[Setup problem] The AI service rejected the request. Check the API key, Base URL and model "
                 "in the sidebar, then send your message again.")
 

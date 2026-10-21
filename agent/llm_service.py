@@ -13,10 +13,12 @@ from .schemas import AgentReply, ExtractionResult
 class LLMError(Exception):
     """Wrapped error: never carries request headers or the API key (X-5)."""
 
-    def __init__(self, message: str, config_problem: bool = False, rate_limited: bool = False):
+    def __init__(self, message: str, config_problem: bool = False, rate_limited: bool = False,
+                 status: int | None = None):
         super().__init__(message)
         self.config_problem = config_problem   # bad key / URL / model: retrying won't help
         self.rate_limited = rate_limited       # provider quota (429): retrying later will help
+        self.status = status                   # HTTP status, used to say what to fix
 
 
 # key prefix -> (base URL, a default model that exists on that provider)
@@ -64,7 +66,8 @@ class OpenAILLM:
                 if status == 400 and attempt == 0:
                     continue        # JSON-mode providers return 400 when the model's JSON fails validation
                 raise LLMError(f"API call failed ({type(exc).__name__}{f', {status}' if status else ''})",
-                               config_problem=status in (401, 403, 404), rate_limited=status == 429) from None
+                               config_problem=status in (401, 403, 404), rate_limited=status == 429,
+                               status=status) from None
         content = resp.choices[0].message.content or "{}"
         try:
             return json.loads(content)
@@ -148,4 +151,14 @@ def resolve_connection(settings, typed_key: str = "", typed_base: str = "", type
         model, model_src = default_model(key), "default for this provider"
     else:
         model, model_src = DEFAULT_MODEL, "default"
+    fixed = fix_model_name(model, base)
+    if fixed != model:
+        model, model_src = fixed, f"{model_src}, corrected from {model!r}"
     return Connection(key, base, model, key_src, base_src, model_src)
+
+
+def fix_model_name(model: str, base_url: str | None) -> str:
+    """Groq lists the open models as 'openai/gpt-oss-20b'; people often type just 'gpt-oss-20b'."""
+    if base_url and "groq.com" in base_url and model.startswith("gpt-oss-"):
+        return "openai/" + model
+    return model
